@@ -1,12 +1,6 @@
 import streamlit as st
-import hashlib
-from cryptography.fernet import Fernet
 
 # ------------------ Setup ------------------
-# Generate a key for Fernet (should be saved securely in real apps)
-KEY = Fernet.generate_key()
-cipher = Fernet(KEY)
-
 # Initialize session state for storage and attempts
 if 'stored_data' not in st.session_state:
     st.session_state.stored_data = {}
@@ -14,43 +8,47 @@ if 'stored_data' not in st.session_state:
 if 'failed_attempts' not in st.session_state:
     st.session_state.failed_attempts = 0
 
-# ------------------ Utility Functions ------------------
+# ------------------ Caesar Cipher Functions ------------------
 
-# Hash the user's passkey
-def hash_passkey(passkey):
-    return hashlib.sha256(passkey.encode()).hexdigest()
+# Basic Caesar cipher encryption
+def caesar_encrypt(text, shift=3):
+    result = ""
+    for char in text:
+        if char.isalpha():
+            base = ord('A') if char.isupper() else ord('a')
+            result += chr((ord(char) - base + shift) % 26 + base)
+        else:
+            result += char
+    return result
 
-# Encrypt data
-def encrypt_data(data):
-    return cipher.encrypt(data.encode()).decode()
+# Basic Caesar cipher decryption
+def caesar_decrypt(text, shift=3):
+    return caesar_encrypt(text, -shift)
 
-# Decrypt data (only if passkey matches)
+# ------------------ Decryption Function ------------------
+
 def decrypt_data(encrypted_text, passkey):
-    hashed_pass = hash_passkey(passkey)
-
-    if encrypted_text in st.session_state.stored_data:
-        saved = st.session_state.stored_data[encrypted_text]
-        if saved['passkey'] == hashed_pass:
-            st.session_state.failed_attempts = 0  # Reset counter
-            return cipher.decrypt(encrypted_text.encode()).decode()
-
+    for key, value in st.session_state.stored_data.items():
+        if key == encrypted_text and value['passkey'] == passkey:
+            st.session_state.failed_attempts = 0
+            return caesar_decrypt(value['encrypted_text'])
     st.session_state.failed_attempts += 1
     return None
 
 # ------------------ Streamlit UI ------------------
 
-st.set_page_config(page_title="Secure Encryption System", page_icon="🔐")
-st.title("🛡️ Secure Data Encryption System")
+st.set_page_config(page_title="Secure Caesar Cipher", page_icon="🔐")
+st.title("🛡️ Simple Secure Data System (No External Libraries)")
 
 menu = ["Home", "Store Data", "Retrieve Data", "Login"]
 choice = st.sidebar.selectbox("🔍 Navigation", menu)
 
-# ------------- Home -------------
+# ------------------ Home ------------------
 if choice == "Home":
     st.subheader("🏠 Welcome!")
-    st.markdown("Use this app to **securely store and retrieve data** with encryption and passkey protection.")
+    st.write("This app uses a **simple Caesar cipher** to store and retrieve encrypted data using a passkey.")
 
-# ------------- Store Data -------------
+# ------------------ Store Data ------------------
 elif choice == "Store Data":
     st.subheader("📂 Store Your Data")
     user_data = st.text_area("Enter the data to encrypt:")
@@ -58,53 +56,48 @@ elif choice == "Store Data":
 
     if st.button("Encrypt & Store"):
         if user_data and passkey:
-            hashed_pass = hash_passkey(passkey)
-            encrypted_text = encrypt_data(user_data)
-
-            # Save encrypted text and passkey hash
+            encrypted_text = caesar_encrypt(user_data)
             st.session_state.stored_data[encrypted_text] = {
                 "encrypted_text": encrypted_text,
-                "passkey": hashed_pass
+                "passkey": passkey
             }
-
-            st.success("✅ Data encrypted and stored successfully!")
+            st.success("✅ Data encrypted and stored!")
             st.write("🔐 Save this encrypted data securely:")
             st.code(encrypted_text)
         else:
             st.error("⚠️ Both fields are required!")
 
-# ------------- Retrieve Data -------------
+# ------------------ Retrieve Data ------------------
 elif choice == "Retrieve Data":
-    st.subheader("🔍 Retrieve Your Data")
-    encrypted_text = st.text_area("Enter your encrypted data:")
+    st.subheader("🔓 Retrieve Your Data")
+    encrypted_input = st.text_area("Enter your encrypted data:")
     passkey = st.text_input("Enter your passkey:", type="password")
 
     if st.button("Decrypt"):
-        if encrypted_text and passkey:
-            result = decrypt_data(encrypted_text, passkey)
+        if encrypted_input and passkey:
+            result = decrypt_data(encrypted_input, passkey)
 
             if result:
                 st.success("✅ Decrypted Data:")
                 st.code(result)
             else:
-                attempts_left = 3 - st.session_state.failed_attempts
-                st.error(f"❌ Incorrect passkey! Attempts left: {attempts_left}")
-
+                remaining = 3 - st.session_state.failed_attempts
+                st.error(f"❌ Incorrect passkey! Attempts left: {remaining}")
                 if st.session_state.failed_attempts >= 3:
                     st.warning("🔒 Too many failed attempts. Redirecting to Login...")
                     st.experimental_rerun()
         else:
             st.error("⚠️ Both fields are required!")
 
-# ------------- Login Page -------------
+# ------------------ Login Page ------------------
 elif choice == "Login":
-    st.subheader("🔐 Login Required")
-    login_input = st.text_input("Enter master password:", type="password")
+    st.subheader("🔑 Reauthorization")
+    login_pass = st.text_input("Enter master password:", type="password")
 
     if st.button("Login"):
-        if login_input == "admin123":  # Replace with secure auth in production
+        if login_pass == "admin123":  # Simple demo login
             st.session_state.failed_attempts = 0
-            st.success("✅ Reauthorization successful. You can now try again.")
+            st.success("✅ Reauthorized! You may now try again.")
             st.experimental_rerun()
         else:
             st.error("❌ Incorrect master password.")
